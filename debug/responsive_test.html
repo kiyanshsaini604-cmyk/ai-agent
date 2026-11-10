@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Responsive Test Harness</title>
+<style>
+  body{margin:0;background:#111;color:#ccc;font:12px/1.4 monospace;
+       display:flex;align-items:center;justify-content:center;height:100vh;overflow:hidden}
+  #wrap{position:relative}
+  iframe{border:2px solid #555;background:#000;transform-origin:top left;
+         position:absolute;top:0;left:0}
+  #label{position:fixed;top:6px;left:8px;color:#0f0;font-size:13px;z-index:10}
+  #hint{position:fixed;bottom:6px;left:8px;color:#888;font-size:11px;z-index:10}
+</style>
+</head>
+<body>
+<div id="wrap"></div>
+<div id="label">…</div>
+<div id="hint">usage: responsive_test.html?w=390&amp;h=844</div>
+<script>
+const q = new URLSearchParams(location.search);
+const W = +(q.get("w") || 390), H = +(q.get("h") || 844);
+document.getElementById("label").textContent = W + " × " + H + "  (simulated device)";
+
+const f = document.createElement("iframe");
+f.width = W; f.height = H; f.src = "/index.html";
+document.getElementById("wrap").appendChild(f);
+
+function fit(){
+  const s = Math.min(1, (innerWidth - 20) / W, (innerHeight - 30) / H);
+  f.style.transform = "scale(" + s + ")";
+  const wrap = document.getElementById("wrap");
+  wrap.style.width = (W * s) + "px";
+  wrap.style.height = (H * s) + "px";
+}
+fit(); addEventListener("resize", fit);
+
+async function report(){
+  await new Promise(res => { if (f.contentDocument && f.contentDocument.readyState === "complete") res();
+                            else f.addEventListener("load", res); });
+  await new Promise(r => setTimeout(r, 600));   // let scripts/animations settle
+  const d = f.contentDocument, w = f.contentWindow;
+  const rect = sel => {
+    const el = d.querySelector(sel); if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width),
+             h: Math.round(r.height), right: Math.round(r.right), bottom: Math.round(r.bottom) };
+  };
+  const cs = (sel, p) => w.getComputedStyle(d.querySelector(sel))[p];
+  const inside = (r, pad) => r && r.x >= -pad && r.y >= -pad &&
+                  r.right <= w.innerWidth + pad && r.bottom <= w.innerHeight + pad;
+
+  const header = rect("header"), clock = rect("#clock"), hint = rect(".hint"),
+        mic = rect("#micbtn"), stage = rect("#stage");
+
+  // functional: tap the mic button
+  d.getElementById("micbtn").click();
+  const afterClick = { status: d.getElementById("statusText").textContent,
+                       mode: w.PhoenixVoice.mode };
+
+  window.__report = {
+    viewport: { w: w.innerWidth, h: w.innerHeight },
+    media: {
+      phone:  w.matchMedia("(max-width:640px)").matches,
+      portrait: w.matchMedia("(max-aspect-ratio:6/5)").matches,
+      short:  w.matchMedia("(max-height:520px)").matches
+    },
+    noScroll: w.getComputedStyle(d.documentElement).overflow === "hidden" &&
+              w.getComputedStyle(d.body).overflow === "hidden",
+    stage: stage,
+    fits: { header: inside(header, 1), clock: inside(clock, 1),
+            hint: inside(hint, 1), mic: inside(mic, 1) },
+    sizes: { brandFont: cs(".brand h1", "fontSize"),
+             clockFont: cs("#ctime", "fontSize"),
+             hintFont: cs(".hint", "fontSize"),
+             hintDesktop: cs(".hint .d", "display"),
+             hintMobile:  cs(".hint .m", "display"),
+             edgefade:    cs("#edgefade", "display"),
+             cmdwinW:     cs("#cmdwin", "width"),
+             cmdwinPos:   cs("#cmdwin", "left") + " / " + cs("#cmdwin", "top") },
+    micBtnClick: afterClick,
+    status: d.getElementById("statusText").textContent
+  };
+}
+report();
+</script>
+</body>
+</html>
